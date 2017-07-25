@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
-const invariant = require('invariant');
 
 /**
  * 遍历给定目录的jsx文件
@@ -13,7 +12,6 @@ const traverseJSX = (rootDir, extname) => {
     const currentFiles = fs.readdirSync(dirname).forEach((file) => {
       const filePath = path.join(dirname, file);
       const stats = fs.statSync(filePath);
-      console.log(path.extname(file), extname)
       if (stats.isDirectory()) {
         traverse(filePath);
       } else if (stats.isFile() && path.extname(file) === extname) {
@@ -26,7 +24,6 @@ const traverseJSX = (rootDir, extname) => {
     });
   }
   traverse(rootDir);
-  console.log(files)
   return files;
 };
 
@@ -38,18 +35,22 @@ const createRender = (ctx, options) => {
 
   return (template, data) => {
     let Template;
-    if (typeof template === 'string') {
-      Template = templates[template];
-      if (!Template) {
-        invariant(true, `Template "${template}" not found`);
+    try {
+      if (typeof template === 'string') {
+        Template = templates[template];
+        if (!Template) {
+          throw new Error(`Template "${template}" not found`);
+        }
+      } else if (typeof template === 'function') {
+        Template = template;
+      } else {
+        throw new TypeError('Template must be a React Component or a path string');
       }
-    } else if (typeof template === 'function') {
-      Template = template;
-    } else {
-      invariant(true, 'Template must be a React Component or a path string');
+      ctx.body = renderToStaticMarkup(<Template locals={options.locals} {...data} />);
+      ctx.type = 'text/html';
+    } catch (e) {
+      ctx.throw(e);
     }
-    ctx.body = renderToStaticMarkup(<Template locals={options.locals} {...data} />);
-    ctx.type = 'text/html';
   };
 }
 
